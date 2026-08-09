@@ -1,6 +1,19 @@
 # Node Express Auth API
 
-A REST authentication API built with TypeScript, Express, PostgreSQL, Prisma ORM, JWT, Zod, OpenAPI, Scalar, and ReDoc.
+A production-oriented REST authentication and authorization API built with TypeScript, Express, PostgreSQL, Prisma, JWT, Zod, OpenAPI, Scalar, and ReDoc.
+
+## Features
+
+- Local account registration and login with bcrypt and signed JWTs
+- Auth0 RS256 access-token validation through remote JWKS
+- Database-backed RBAC with direct roles, groups, and effective permissions
+- Protected system roles, final-administrator safeguards, and transactional audit logs
+- Cursor-paginated administration endpoints with Zod request validation
+- English, French, and Spanish `application/problem+json` errors
+- Global and authentication-specific rate limiting
+- Liveness/readiness probes and graceful shutdown
+- Generated OpenAPI documentation with Scalar and ReDoc interfaces
+- Docker Compose workflows for database-only, development, and production-like use
 
 The code follows a layered OOP design with constructor injection. Controllers handle HTTP, `AuthService` owns the use cases, and Prisma stays behind the `UserRepository` interface.
 
@@ -39,11 +52,13 @@ For Auth0 Universal Login, the frontend should pass an OIDC `ui_locales` value s
 nvm install
 nvm use
 cp .env.example .env
-npm install
-docker compose up -d
-npm run db:migrate -- --name init
+npm ci
+docker compose up -d postgres
+npm run db:deploy
 npm run dev
 ```
+
+Before starting the API, replace the example `JWT_SECRET` and review the database, CORS, Auth0, and seed values in `.env`. The server defaults to <http://localhost:3000>.
 
 Create the first local administrator with the repeatable database seed. Set `ADMIN_SEED_NAME`, `ADMIN_SEED_EMAIL`, and a unique `ADMIN_SEED_PASSWORD` of 12–72 characters in `.env`, then run:
 
@@ -90,7 +105,17 @@ docker compose down
 
 Set `PORT`, `POSTGRES_PORT`, `POSTGRES_DB`, `POSTGRES_USER`, and `POSTGRES_PASSWORD` in `.env` to override defaults. Set `TRUST_PROXY` to the exact number of trusted reverse proxies in front of Express. API documentation is disabled by default in the production Compose profile; explicitly set `DOCS_ENABLED=true` only when public documentation is intended. PostgreSQL data uses the named `postgres_data` volume and survives `docker compose down`; adding `--volumes` permanently deletes that local database volume.
 
-Check code quality with `npm run typecheck` and `npm run lint`. ESLint uses type-aware TypeScript rules; use `npm run lint:fix` for safe automatic fixes.
+Check the complete project with:
+
+```bash
+npm run typecheck
+npm run lint
+npm test
+npm run build
+npx prisma validate
+```
+
+ESLint uses type-aware TypeScript rules; use `npm run lint:fix` for safe automatic fixes.
 
 Husky runs ESLint, the TypeScript checker, and Jest before each commit. A failed check blocks the commit until the issue is fixed.
 
@@ -108,6 +133,25 @@ Create focused branches and commits:
 git switch -c feature/short-description
 git add .
 git commit -m "feat: describe the change"
+```
+
+## Project structure
+
+```text
+src/
+  config/          Environment, Prisma, OpenAPI, Scalar, and ReDoc setup
+  controllers/     HTTP request/response adapters
+  domain/          Framework-independent domain types
+  integrations/    Auth0 middleware and routes
+  middleware/      Authentication, validation, rate limiting, and errors
+  repositories/    Persistence interfaces and Prisma implementations
+  routes/          Express route composition
+  schemas/         Zod request schemas
+  services/        Authentication and authorization use cases
+prisma/
+  migrations/      Reviewed database migrations
+  schema.prisma    PostgreSQL data model
+tests/             Unit and integration tests
 ```
 
 Open the interactive Scalar API reference at <http://localhost:3000/docs> or the self-hosted ReDoc reference at <http://localhost:3000/redoc>. The raw OpenAPI document remains available at <http://localhost:3000/openapi.json>.
