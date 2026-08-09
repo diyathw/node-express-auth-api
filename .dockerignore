@@ -1,0 +1,14 @@
+.git
+.gitignore
+.husky
+.env
+.env.*
+!.env.example
+coverage
+dist
+node_modules
+npm-debug.log*
+src/generated
+Dockerfile*
+docker-compose*.yml
+README.md

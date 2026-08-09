@@ -1,0 +1,102 @@
+x-api-environment: &api-environment
+  PORT: 3000
+  DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-auth_api}
+  JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET in .env}
+  JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-1h}
+  CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+  AUTH0_DOMAIN: ${AUTH0_DOMAIN:?Set AUTH0_DOMAIN in .env}
+  AUTH0_AUDIENCE: ${AUTH0_AUDIENCE:?Set AUTH0_AUDIENCE in .env}
+  RATE_LIMIT_WINDOW_MS: ${RATE_LIMIT_WINDOW_MS:-900000}
+  RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-100}
+  AUTH_RATE_LIMIT_MAX: ${AUTH_RATE_LIMIT_MAX:-10}
+  TRUST_PROXY: ${TRUST_PROXY:-0}
+  DOCS_ENABLED: ${DOCS_ENABLED:-false}
+  READINESS_TIMEOUT_MS: ${READINESS_TIMEOUT_MS:-2000}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-auth_api}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+    networks: [backend]
+    security_opt:
+      - no-new-privileges:true
+
+  migrate:
+    build:
+      context: .
+      target: migration
+    profiles: [app, dev]
+    environment: *api-environment
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [backend]
+    restart: "no"
+    security_opt:
+      - no-new-privileges:true
+
+  api:
+    build:
+      context: .
+      target: production
+    profiles: [app]
+    restart: unless-stopped
+    init: true
+    environment:
+      <<: *api-environment
+      NODE_ENV: production
+    ports:
+      - "${PORT:-3000}:3000"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks: [backend]
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+
+  api-dev:
+    build:
+      context: .
+      target: development
+    profiles: [dev]
+    init: true
+    environment:
+      <<: *api-environment
+      NODE_ENV: development
+    command: ["sh", "-c", "npm run db:generate && npm run dev"]
+    ports:
+      - "${PORT:-3000}:3000"
+    volumes:
+      - .:/app
+      - node_modules:/app/node_modules
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks: [backend]
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  backend:
+
+volumes:
+  postgres_data:
+  node_modules:
